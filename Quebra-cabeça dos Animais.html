@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quebra-cabeça dos Animais</title>
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#f4f1ea;--card:#fff;--text:#2b2a33;--muted:#6d6a78;--line:#2b2a33;
+  --accent:#e0702b;--ok:#2e9e5b;--bad:#d64545;--btn:#efe9dc;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#1c1b22;--card:#27262f;--text:#f1eee6;--muted:#a8a5b3;--line:#0f0e14;
+    --accent:#f08a47;--ok:#4cc27f;--bad:#ee6a6a;--btn:#34323d;color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1c1b22;--card:#27262f;--text:#f1eee6;--muted:#a8a5b3;--line:#0f0e14;
+  --accent:#f08a47;--ok:#4cc27f;--bad:#ee6a6a;--btn:#34323d;color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh;display:flex;justify-content:center;padding:20px 16px 32px}
+main{width:100%;max-width:400px;text-align:center}
+h1{font-size:1.5rem;margin:0 0 4px}
+.sub{color:var(--muted);font-size:.9rem;margin:0 0 14px}
+.stats{display:flex;justify-content:space-between;gap:8px;margin-bottom:12px}
+.stat{flex:1;background:var(--card);border-radius:12px;padding:8px 4px;font-size:.8rem;color:var(--muted)}
+.stat b{display:block;font-size:1.25rem;color:var(--text)}
+#board{position:relative;width:min(100%,360px);aspect-ratio:1;margin:0 auto;background:var(--card);border-radius:14px;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.18)}
+.tile{position:absolute;left:0;top:0;overflow:hidden;cursor:pointer;transition:transform .28s cubic-bezier(.3,.8,.3,1),opacity .5s}
+.tile::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 2px var(--line);border-radius:6px;transition:box-shadow .5s,border-radius .5s}
+.tile .img{position:absolute;display:flex;align-items:center;justify-content:center;line-height:1;user-select:none}
+.tile.empty{opacity:0;pointer-events:none}
+.tile.empty.show{opacity:1}
+.tile.shake{animation:shake .3s}
+.tile.movable:hover{filter:brightness(1.08)}
+#board.done .tile::after{box-shadow:none;border-radius:0}
+#board.done{animation:pop .5s}
+@keyframes shake{25%{rotate:-4deg}75%{rotate:4deg}}
+@keyframes pop{50%{transform:scale(1.04)}}
+.tools{display:flex;gap:8px;justify-content:center;margin:14px 0}
+button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:10px 14px;background:var(--btn);color:var(--text)}
+button:hover{filter:brightness(.96)}
+button.primary{background:var(--accent);color:#fff;font-weight:600}
+#preview{display:none;width:96px;height:96px;margin:0 auto 12px;border-radius:12px;align-items:center;justify-content:center;font-size:64px}
+#preview.on{display:flex}
+#quiz{display:none;background:var(--card);border-radius:14px;padding:16px;margin-top:6px}
+#quiz.on{display:block;animation:pop .4s}
+#quiz h2{font-size:1.1rem;margin:0 0 12px}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opt{padding:14px 8px;font-size:1.05rem;font-weight:600;border:2px solid transparent}
+.opt.ok{background:var(--ok);color:#fff}
+.opt.bad{background:var(--bad);color:#fff;animation:shake .3s;opacity:.75}
+#msg{min-height:1.4em;margin:12px 0 0;font-weight:600}
+</style>
+</head>
+<body>
+<main>
+  <h1>🧩 Quebra-cabeça dos Animais</h1>
+  <p class="sub">Toque em uma peça ao lado do espaço vazio para movê-la.</p>
+  <div class="stats">
+    <div class="stat"><b id="sRound">1</b>Rodada</div>
+    <div class="stat"><b id="sScore">0</b>Acertos</div>
+    <div class="stat"><b id="sMoves">0</b>Movimentos</div>
+  </div>
+  <div id="preview"></div>
+  <div id="board" aria-label="Tabuleiro do quebra-cabeça"></div>
+  <div class="tools">
+    <button id="bPrev">👁 Ver modelo</button>
+    <button id="bShuf">🔀 Embaralhar</button>
+  </div>
+  <section id="quiz">
+    <h2>Qual é o nome deste animal?</h2>
+    <div class="opts" id="opts"></div>
+    <p id="msg"></p>
+    <button class="primary" id="bNext" style="display:none;margin-top:8px">Próximo animal ➜</button>
+  </section>
+</main>
+<script>
+const ANIMALS=[
+  {n:"Leão",e:"🦁",c:"#fde2a7"},{n:"Elefante",e:"🐘",c:"#cfe3f5"},
+  {n:"Girafa",e:"🦒",c:"#fbe9b5"},{n:"Macaco",e:"🐵",c:"#e9d3bd"},
+  {n:"Tigre",e:"🐯",c:"#fcd5b0"},{n:"Panda",e:"🐼",c:"#d9efd9"},
+  {n:"Coruja",e:"🦉",c:"#e3dcf3"},{n:"Golfinho",e:"🐬",c:"#c8e8f2"},
+  {n:"Raposa",e:"🦊",c:"#fbd3c4"},{n:"Sapo",e:"🐸",c:"#d3ecb8"},
+  {n:"Coelho",e:"🐰",c:"#f6d9e6"},{n:"Pinguim",e:"🐧",c:"#d6e4f0"}
+];
+const N=3,T=N*N,EMPTY=T-1;
+const $=id=>document.getElementById(id);
+const board=$("board"),quiz=$("quiz"),opts=$("opts"),msg=$("msg"),bNext=$("bNext"),preview=$("preview");
+let at=[],tiles=[],animal=null,last=-1,round=1,score=0,moves=0,locked=true,wrong=0;
+
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const near=(a,b)=>Math.abs(((a/N)|0)-((b/N)|0))+Math.abs(a%N-b%N)===1;
+
+function layout(){
+  const size=board.clientWidth,t=size/N;
+  tiles.forEach((el,id)=>{
+    const r=(id/N)|0,c=id%N,p=at.indexOf(id);
+    el.style.width=el.style.height=t+"px";
+    const im=el.firstChild;
+    im.style.cssText=`width:${size}px;height:${size}px;left:${-c*t}px;top:${-r*t}px;font-size:${size*.68}px;background:${animal.c}`;
+    el.style.transform=`translate(${(p%N)*t}px,${((p/N)|0)*t}px)`;
+    el.classList.toggle("movable",!locked&&id!==EMPTY&&near(p,at.indexOf(EMPTY)));
+  });
+}
+
+function build(){
+  board.innerHTML="";board.classList.remove("done");
+  at=[...Array(T).keys()];
+  tiles=at.map(id=>{
+    const el=document.createElement("div");el.className="tile"+(id===EMPTY?" empty":"");
+    const im=document.createElement("div");im.className="img";im.textContent=animal.e;
+    el.appendChild(im);el.onclick=()=>tap(id);
+    board.appendChild(el);return el;
+  });
+  layout();
+}
+
+function scramble(){
+  let e=at.indexOf(EMPTY),prev=-1;
+  for(let i=0;i<70;i++){
+    const nb=[];
+    const r=(e/N)|0,c=e%N;
+    if(r>0)nb.push(e-N);if(r<N-1)nb.push(e+N);if(c>0)nb.push(e-1);if(c<N-1)nb.push(e+1);
+    const opts=nb.filter(x=>x!==prev),n=opts[Math.floor(Math.random()*opts.length)];
+    [at[e],at[n]]=[at[n],at[e]];prev=e;e=n;
+  }
+  if(at.every((id,p)=>id===p))scramble();
+}
+
+function startRound(){
+  quiz.classList.remove("on");bNext.style.display="none";msg.textContent="";
+  let i;do{i=Math.floor(Math.random()*ANIMALS.length)}while(i===last);
+  last=i;animal=ANIMALS[i];preview.textContent=animal.e;preview.style.background=animal.c;
+  moves=0;wrong=0;locked=true;build();stats();
+  setTimeout(()=>{scramble();layout();setTimeout(()=>{locked=false;layout()},350)},500);
+}
+
+function reshuffle(){
+  if(board.classList.contains("done"))return;
+  locked=true;moves=0;stats();
+  at=[...Array(T).keys()];scramble();layout();
+  setTimeout(()=>{locked=false;layout()},350);
+}
+
+function tap(id){
+  if(locked||id===EMPTY)return;
+  const p=at.indexOf(id),e=at.indexOf(EMPTY),el=tiles[id];
+  if(!near(p,e)){
+    el.classList.remove("shake");void el.offsetWidth;el.classList.add("shake");return;
+  }
+  [at[p],at[e]]=[at[e],at[p]];moves++;stats();layout();
+  if(at.every((x,i)=>x===i))win();
+}
+
+function win(){
+  locked=true;layout();
+  setTimeout(()=>{
+    tiles[EMPTY].classList.add("show");board.classList.add("done");
+    setTimeout(showQuiz,900);
+  },320);
+}
+
+function showQuiz(){
+  opts.innerHTML="";
+  const others=shuffle(ANIMALS.filter(a=>a!==animal)).slice(0,3);
+  shuffle([animal,...others]).forEach(a=>{
+    const b=document.createElement("button");b.className="opt";b.textContent=a.n;
+    b.style.background="var(--btn)";
+    b.onclick=()=>answer(b,a);opts.appendChild(b);
+  });
+  quiz.classList.add("on");
+  quiz.scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+
+function answer(b,a){
+  if(a===animal){
+    [...opts.children].forEach(x=>x.disabled=true);
+    b.classList.add("ok");b.style.background="";
+    if(wrong===0){score++;msg.textContent="🎉 Acertou de primeira!"}
+    else msg.textContent="✅ Isso mesmo! É um(a) "+animal.n+".";
+    stats();bNext.style.display="inline-block";
+  }else{
+    wrong++;b.disabled=true;b.classList.add("bad");b.style.background="";
+    msg.textContent="❌ Ops, tente outra opção!";
+  }
+}
+
+function stats(){$("sRound").textContent=round;$("sScore").textContent=score;$("sMoves").textContent=moves}
+
+bNext.onclick=()=>{round++;startRound()};
+$("bShuf").onclick=reshuffle;
+$("bPrev").onclick=()=>preview.classList.toggle("on");
+addEventListener("resize",layout);
+startRound();
+</script>
+</body>
+</html>
